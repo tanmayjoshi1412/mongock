@@ -1,0 +1,6 @@
+[
+  {
+    "changeUnitId": "1",
+    "create": ["customer", "product"]
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "changeUnitId": "2",
+    "collectionName": "customer",
+    "insert": {
+      "operation": "insertDocument",
+      "documents": [
+        {
+          "name": "John Doe",
+          "age": 30
+        },
+        {
+          "name": "Jane Doe",
+          "age": 25
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "changeSetOrder": "1",
+  "collection": "products",
+  "data": [
+    {
+      "name": "Product 1",
+      "price": 100,
+      "category": "Category A"
+    },
+    {
+      "name": "Product 2",
+      "price": 150,
+      "category": "Category B"
+    }
+  ]
+}

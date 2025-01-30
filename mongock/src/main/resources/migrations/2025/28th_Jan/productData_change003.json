@@ -1,0 +1,30 @@
+[
+  {
+    "changeUnitId": "3",
+    "collectionName": "product",
+    "insert": [
+      {
+        "name": "Laptop",
+        "category": "Electronics",
+        "price": 1200,
+        "quantity": 50
+      }
+    ]
+  },
+  {
+    "changeUnitId": 4,
+    "collectionName": "product",
+    "update": {
+      "queries": [
+        {
+          "query": { "name": "Laptop" },
+          "update": { "$set": { "price": 1300 } }
+        },
+        {
+          "query": { "name": "Laptop1" },
+          "update": { "$set": { "price": 12000 } }
+        }
+      ]
+    }
+  }
+]

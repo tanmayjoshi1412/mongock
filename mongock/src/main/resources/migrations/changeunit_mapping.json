@@ -1,0 +1,5 @@
+[
+  { "changeUnitId": "001", "fileName": "src/main/resources/migrations/2025/28th_Jan/create_collection_change001.json" },
+  { "changeUnitId": "002", "fileName":"src/main/resources/migrations/2025/28th_Jan/customerData_change002.json" },
+  { "changeUnitId": "003", "fileName": "src/main/resources/migrations/2025/28th_Jan/productData_change003.json" }
+]
