@@ -1,0 +1,6 @@
+{
+  "rename": [
+    {"oldCollection": "oldCollection1", "newCollection": "newCollection1"},
+    {"oldCollection": "oldCollection2", "newCollection": "newCollection2"}
+  ]
+}

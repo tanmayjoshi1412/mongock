@@ -5,6 +5,7 @@ import com.example.mongock.model.CreateData;
 import com.example.mongock.model.OperationType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.MongoNamespace;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
 import org.bson.Document;
@@ -12,13 +13,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.mongodb.client.MongoDatabase;
 
 import java.util.Collections;
 import java.util.Map;
 
 @Service
 public class ChangeUnitService {
-    
+
     @Autowired
     private ChangeLogService changeLogService;
 
@@ -204,6 +206,51 @@ public class ChangeUnitService {
 
             // Log failure
             changeLogService.logChangeLog(changeUnitId, OperationType.DELETE.toString(), collectionData.getCollectionName(), false);
+        }
+    }
+
+    // Method to handle dropping a collection
+    public void dropCollection(String changeUnitId, String collectionName) {
+        try {
+            // Drop the collection
+            mongoTemplate.getDb().getCollection(collectionName).drop();
+
+            // Log the change
+            changeLogService.logChangeLog(changeUnitId, OperationType.DROP.toString(), collectionName, true);
+            System.out.println("Dropped collection: " + collectionName);
+        } catch (Exception e) {
+            System.err.println("Error dropping collection " + collectionName + ": " + e.getMessage());
+            changeLogService.logChangeLog(changeUnitId, OperationType.DROP.toString(), collectionName, false);
+        }
+    }
+
+    public void renameCollection(String changeUnitId, String oldCollectionName, String newCollectionName) {
+        try {
+            // Accessing MongoDatabase directly from MongoClient
+            MongoDatabase database = mongoClient.getDatabase(mongoTemplate.getDb().getName());
+
+            if (database != null) {
+                // Check if the collection exists before renaming
+                if (database.listCollectionNames().into(new java.util.ArrayList<>()).contains(oldCollectionName)) {
+                    // Rename collection using MongoNamespace
+                    database.getCollection(oldCollectionName).renameCollection(new MongoNamespace(database.getName(), newCollectionName));
+                    System.out.println("Collection renamed from " + oldCollectionName + " to " + newCollectionName);
+
+                    // Log the successful operation
+                    changeLogService.logChangeLog(changeUnitId, OperationType.RENAME.toString(), oldCollectionName, true);
+                } else {
+                    System.out.println("Collection " + oldCollectionName + " does not exist.");
+                    changeLogService.logChangeLog(changeUnitId, OperationType.RENAME.toString(), oldCollectionName, false);
+                }
+            } else {
+                System.out.println("Failed to access MongoDatabase.");
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing rename operation for ChangeUnit: " + changeUnitId);
+            e.printStackTrace();
+
+            // Log failure in ChangeLog
+            changeLogService.logChangeLog(changeUnitId, OperationType.RENAME.toString(), oldCollectionName, false);
         }
     }
 }

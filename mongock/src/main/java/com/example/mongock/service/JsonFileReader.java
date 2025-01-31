@@ -63,8 +63,21 @@ public class JsonFileReader {
                     System.out.println("ChangeUnit (" + metadata.getChangeUnitId() + ") already applied.");
                     continue;
                 }
-
-                if (jsonTree.has("create")) {
+                // Process drop operations
+                if (jsonTree.has("drop")) {
+                    for (JsonNode dropNode : jsonTree.get("drop")) {
+                        String collectionName = dropNode.asText();
+                        changeUnitService.dropCollection(metadata.getChangeUnitId(), collectionName);
+                        System.out.println("Drop collection: " + collectionName);
+                    }
+                }else if (jsonTree.has("rename")) {
+                    for (JsonNode renameNode : jsonTree.get("rename")) {
+                        String oldCollectionName = renameNode.get("oldCollection").asText();
+                        String newCollectionName = renameNode.get("newCollection").asText();
+                        changeUnitService.renameCollection(metadata.getChangeUnitId(), oldCollectionName, newCollectionName);
+                        System.out.println("Rename collection: " + oldCollectionName + " to " + newCollectionName);
+                    }
+                }else if (jsonTree.has("create")) {
                     CreateData createData = objectMapper.readValue(new File(filePath), CreateData.class);
                     changeUnitService.createCollection(metadata.getChangeUnitId(), createData);
                     System.out.println("Create Data: " + createData);
