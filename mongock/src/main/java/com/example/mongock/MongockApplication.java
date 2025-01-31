@@ -1,7 +1,7 @@
 package com.example.mongock;
 
 
-import com.example.mongock.service.ChangeUnitService;
+import com.example.mongock.service.JsonFileReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -11,18 +11,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class MongockApplication implements CommandLineRunner {
 
-    @Value("${mongock.input.directory}")
-    private String inputFileDirectory;
-
-    @Value("${mongock.input.fileName}")
-    private String inputFileName;
-
-
-    private final ChangeUnitService changeUnitService;
+    private final JsonFileReader jsonFileReader;
 
     @Autowired
-    public MongockApplication(ChangeUnitService changeUnitService) {
-        this.changeUnitService = changeUnitService;
+    public MongockApplication(JsonFileReader jsonFileReader) {
+        this.jsonFileReader = jsonFileReader;
     }
 
 
@@ -33,7 +26,7 @@ public class MongockApplication implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         // Provide the path to your migrations JSON file
-        changeUnitService.applyChangesFromJson("src/main/resources/migrations/"+ inputFileDirectory+ "/" + inputFileName);
+        jsonFileReader.processChangeUnits();
 
     }
 }

@@ -1,30 +1,19 @@
-[
-  {
-    "changeUnitId": "3",
-    "collectionName": "product",
-    "insert": [
+{
+  "collectionName": "product",
+  "insert": [
+    {
+      "name": "Laptop",
+      "category": "Electronics",
+      "price": 1200,
+      "quantity": 50
+    }
+  ],
+  "update": {
+    "queries": [
       {
-        "name": "Laptop",
-        "category": "Electronics",
-        "price": 1200,
-        "quantity": 50
+        "query": { "name": "Laptop", "price": 1200, "category": "Electronics" },
+        "update": { "$set": { "price": 2000 } }
       }
     ]
-  },
-  {
-    "changeUnitId": 4,
-    "collectionName": "product",
-    "update": {
-      "queries": [
-        {
-          "query": { "name": "Laptop" },
-          "update": { "$set": { "price": 1300 } }
-        },
-        {
-          "query": { "name": "Laptop1" },
-          "update": { "$set": { "price": 12000 } }
-        }
-      ]
-    }
   }
-]
+}
