@@ -1,0 +1,19 @@
+{
+  "collectionName": "product",
+  "insert": [
+    {
+      "name": "Laptop",
+      "category": "Electronics",
+      "price": 1200,
+      "quantity": 50
+    }
+  ],
+  "update": {
+    "queries": [
+      {
+        "query": { "name": "Laptop", "price": 1200, "category": "Electronics" },
+        "update": { "$set": { "price": 2000 } }
+      }
+    ]
+  }
+}

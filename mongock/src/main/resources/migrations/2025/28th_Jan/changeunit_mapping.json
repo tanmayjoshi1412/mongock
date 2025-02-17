@@ -1,7 +1,18 @@
-[
-  { "changeUnitId": "001", "fileName": "src/main/resources/migrations/2025/28th_Jan/create_collection_change001.json" },
-  { "changeUnitId": "002", "fileName": "src/main/resources/migrations/2025/28th_Jan/customerData_change002.json" },
-  { "changeUnitId": "003", "fileName": "src/main/resources/migrations/2025/28th_Jan/productData_change003.json" },
-  { "changeUnitId": "004", "fileName": "src/main/resources/migrations/2025/28th_Jan/drop_collections_change004.json" },
-  { "changeUnitId": "005", "fileName": "src/main/resources/migrations/2025/28th_Jan/rename_collections_change005.json" }
-]
+{
+
+  "mongock": [
+    { "changeUnitId": "001", "fileName": "src/main/resources/migrations/2025/28th_Jan/mongock/create_collection_change001.json" },
+    { "changeUnitId": "002", "fileName": "src/main/resources/migrations/2025/28th_Jan/mongock/customerData_change002.json" },
+    { "changeUnitId": "003", "fileName": "src/main/resources/migrations/2025/28th_Jan/mongock/productData_change003.json" },
+    { "changeUnitId": "004", "fileName": "src/main/resources/migrations/2025/28th_Jan/mongock/drop_collections_change004.json" },
+    { "changeUnitId": "005", "fileName": "src/main/resources/migrations/2025/28th_Jan/mongock/rename_collections_change005.json" }
+  ],
+
+  "database1": [
+    { "changeUnitId": "001", "fileName": "src/main/resources/migrations/2025/28th_Jan/database1/create_collection_change001.json" },
+    { "changeUnitId": "002", "fileName": "src/main/resources/migrations/2025/28th_Jan/database1/customerData_change002.json" },
+    { "changeUnitId": "003", "fileName": "src/main/resources/migrations/2025/28th_Jan/database1/productData_change003.json" },
+    { "changeUnitId": "004", "fileName": "src/main/resources/migrations/2025/28th_Jan/database1/drop_collections_change004.json" },
+    { "changeUnitId": "005", "fileName": "src/main/resources/migrations/2025/28th_Jan/database1/rename_collections_change005.json" }
+  ]
+}

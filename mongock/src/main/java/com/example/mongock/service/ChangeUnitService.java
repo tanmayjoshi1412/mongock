@@ -2,255 +2,189 @@ package com.example.mongock.service;
 
 import com.example.mongock.model.CollectionData;
 import com.example.mongock.model.CreateData;
-import com.example.mongock.model.OperationType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.MongoNamespace;
-import com.mongodb.client.ClientSession;
-import com.mongodb.client.MongoClient;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import com.mongodb.client.MongoDatabase;
-
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class ChangeUnitService {
 
-    @Autowired
-    private ChangeLogService changeLogService;
-
-    private final MongoTemplate mongoTemplate;
+    private final ChangeLogService changeLogService;
     private final ObjectMapper objectMapper;
-    private final MongoClient mongoClient; // For transactions
 
     @Autowired
-    public ChangeUnitService(MongoTemplate mongoTemplate, ObjectMapper objectMapper, MongoClient mongoClient) {
-        this.mongoTemplate = mongoTemplate;
+    public ChangeUnitService(ChangeLogService changeLogService, ObjectMapper objectMapper) {
+        this.changeLogService = changeLogService;
         this.objectMapper = objectMapper;
-        this.mongoClient = mongoClient;
     }
 
-    public void createCollection(String changeUnitId, CreateData createData) {
+    /**
+     * Creates a collection if it does not exist.
+     */
+    public void createCollection(String changeUnitId, CreateData createData, MongoTemplate mongoTemplate) {
         try {
-            // Process the create operations
-            processCreateOperations(changeUnitId, createData);
-
-            // Log successful creation operation
-            changeLogService.logChangeLog(changeUnitId, OperationType.CREATE.toString(), createData.getCreate(), true);
+            for (String collectionName : createData.getCreate()) {
+                if (!mongoTemplate.collectionExists(collectionName)) {
+                    mongoTemplate.createCollection(collectionName);
+                    System.out.println("Created collection: " + collectionName);
+                } else {
+                    System.out.println("Collection already exists: " + collectionName);
+                }
+            }
+            changeLogService.logChangeLog(changeUnitId, "CREATE", createData.getCreate(), true,mongoTemplate);
         } catch (Exception e) {
-            // Log the exception in case of failure
-            System.err.println("Error processing create operation for ChangeUnit: " + changeUnitId);
+            changeLogService.logChangeLog(changeUnitId, "CREATE", createData.getCreate(), false, mongoTemplate);
             e.printStackTrace();
-
-            // Log failure
-            changeLogService.logChangeLog(changeUnitId, OperationType.CREATE.toString(), createData.getCreate(), false);
         }
     }
 
-    private void processCreateOperations(String changeUnitId, CreateData createData) {
-        createData.getCreate().forEach(collectionName -> {
-            if (!mongoTemplate.collectionExists(collectionName)) {
-                mongoTemplate.createCollection(collectionName);
-                System.out.println("Collection " + collectionName + " created.");
+    /**
+     * Drops a collection if it exists.
+     */
+    public void dropCollection(String changeUnitId, String collectionName, MongoTemplate mongoTemplate) {
+        try {
+            if (mongoTemplate.collectionExists(collectionName)) {
+                mongoTemplate.dropCollection(collectionName);
+                System.out.println("Dropped collection: " + collectionName);
+                changeLogService.logChangeLog(changeUnitId, "DROP", List.of(collectionName), true, mongoTemplate);
             } else {
-                System.out.println("Collection " + collectionName + " already exists.");
+                System.out.println("Collection does not exist: " + collectionName);
+            }
+        } catch (Exception e) {
+            changeLogService.logChangeLog(changeUnitId, "DROP", List.of(collectionName), false, mongoTemplate);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Renames a collection if it exists.
+     */
+    public void renameCollection(String changeUnitId, String oldCollectionName, String newCollectionName, MongoTemplate mongoTemplate) {
+        try {
+            if (mongoTemplate.collectionExists(oldCollectionName)) {
+                mongoTemplate.getDb().getCollection(oldCollectionName)
+                        .renameCollection(new MongoNamespace(mongoTemplate.getDb().getName(), newCollectionName));
+                System.out.println("Renamed collection: " + oldCollectionName + " → " + newCollectionName);
+                changeLogService.logChangeLog(changeUnitId, "RENAME", List.of(oldCollectionName, newCollectionName), true,mongoTemplate);
+            } else {
+                System.out.println("Collection not found for rename: " + oldCollectionName);
+            }
+        } catch (Exception e) {
+            changeLogService.logChangeLog(changeUnitId, "RENAME", List.of(oldCollectionName, newCollectionName), false, mongoTemplate);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Runs operations on a collection, including insert, update, and delete.
+     */
+    public void runOperationsOnCollection(String changeUnitId, CollectionData collectionData, MongoTemplate mongoTemplate) {
+        try {
+            processInsertOperation(changeUnitId, collectionData, mongoTemplate);
+            processUpdateOperation(changeUnitId, collectionData, mongoTemplate);
+            processDeleteOperation(changeUnitId, collectionData, mongoTemplate);
+        } catch (Exception e) {
+            changeLogService.logChangeLog(changeUnitId, "TRANSACTION", Collections.emptyList(), false, mongoTemplate);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Inserts documents into a collection.
+     */
+    private void processInsertOperation(String changeUnitId, CollectionData collectionData, MongoTemplate mongoTemplate) {
+        collectionData.getInsert().ifPresent(insertNode -> {  // Unwrap Optional<JsonNode>
+            String collectionName = collectionData.getCollectionName();
+
+            // Ensure insertNode is an array before iterating
+            if (insertNode.isArray()) {
+                for (JsonNode document : insertNode) {
+                    mongoTemplate.insert(Document.parse(document.toString()), collectionName);
+                }
+                System.out.println("Inserted documents into collection: " + collectionName);
+                changeLogService.logChangeLog(changeUnitId, "INSERT", collectionName, true, mongoTemplate);
+            } else {
+                System.err.println("Insert operation skipped: 'insert' field is not an array.");
             }
         });
     }
 
-    @Transactional // Ensure each operation runs inside a transaction
-    public void runOperationsOnCollection(String changeUnitId, CollectionData collectionData) {
-        try (ClientSession session = mongoClient.startSession()) {
-            session.startTransaction(); // Start a transaction
 
-            processInsertOperation(changeUnitId, collectionData);
-            processUpdateOperation(changeUnitId, collectionData);
-            processDeleteOperation(changeUnitId, collectionData);
 
-            session.commitTransaction(); // Commit transaction if everything succeeds
-            System.out.println("Transaction committed for ChangeUnit: " + changeUnitId);
-        } catch (Exception e) {
-            System.err.println("Rolling back transaction for ChangeUnit: " + changeUnitId);
-            e.printStackTrace();
+    /**
+     * Updates documents in a collection.
+     */
+    private void processUpdateOperation(String changeUnitId, CollectionData collectionData, MongoTemplate mongoTemplate) {
+        collectionData.getUpdate().ifPresent(updateNode -> {  // Unwrap Optional<JsonNode>
+            String collectionName = collectionData.getCollectionName();
+            JsonNode queriesNode = updateNode.get("queries");
 
-            // Log failure in ChangeLog
-            changeLogService.logChangeLog(changeUnitId, "TRANSACTION", Collections.emptyList(), false);
-        }
-    }
-
-    private void processInsertOperation(String changeUnitId, CollectionData collectionData) {
-        try {
-            collectionData.getInsert().ifPresent(insertNode -> {
-                String collectionName = collectionData.getCollectionName();
-
-                if (!insertNode.isArray()) {
-                    System.err.println("Insert operation skipped: Expected an array, but got " + insertNode);
-                    return;
-                }
-
-                // Convert each JSON node into a Document and insert into MongoDB
-                insertNode.forEach(document -> mongoTemplate.insert(Document.parse(document.toString()), collectionName));
-
-                // Log the operation after successful insertion
-                changeLogService.logChangeLog(changeUnitId, OperationType.INSERT.toString(), collectionName, true);
-            });
-        } catch (Exception e) {
-            // Log the exception in case of failure
-            System.err.println("Error processing insert operation for ChangeUnit: " + changeUnitId);
-            e.printStackTrace();
-
-            // Log failure
-            changeLogService.logChangeLog(changeUnitId, OperationType.INSERT.toString(), collectionData.getCollectionName(), false);
-        }
-    }
-
-    private void processUpdateOperation(String changeUnitId, CollectionData collectionData) {
-        try {
-            if (collectionData.getUpdate().isPresent()) {
-                JsonNode updateNode = collectionData.getUpdate().get();
-                JsonNode queriesNode = updateNode.get("queries");
-
-                if (queriesNode == null || !queriesNode.isArray()) {
-                    System.err.println("Update operation skipped: 'queries' field is missing or not an array.");
-                    return;
-                }
-
-                // Processing each query in the "queries" array
-                queriesNode.forEach(queryNode -> {
+            if (queriesNode != null && queriesNode.isArray()) {
+                for (JsonNode queryNode : queriesNode) {
                     JsonNode query = queryNode.get("query");
                     JsonNode update = queryNode.get("update");
-
-                    if (query != null && update != null) {
-                        updateDocument(collectionData.getCollectionName(), query, update);
-                    } else {
-                        System.err.println("Skipping update operation due to missing 'query' or 'update'.");
-                    }
-                });
-                // Log successful update operation
-                changeLogService.logChangeLog(changeUnitId, OperationType.UPDATE.toString(), collectionData.getCollectionName(), true);
-            }
-        } catch (Exception e) {
-            // Log the exception
-            System.err.println("Error processing update operation for ChangeUnit: " + changeUnitId);
-            e.printStackTrace();
-
-            // Log failure
-            changeLogService.logChangeLog(changeUnitId, OperationType.UPDATE.toString(), collectionData.getCollectionName(), false);
-        }
-    }
-
-    private void updateDocument(String collectionName, JsonNode queryNode, JsonNode updateNode) {
-        Map<String, Object> query = objectMapper.convertValue(queryNode, Map.class);
-        Map<String, Object> update = objectMapper.convertValue(updateNode, Map.class);
-
-        System.out.println("Executing update on: " + collectionName);
-        System.out.println("Query: " + query);
-        System.out.println("Update: " + update);
-
-        // Ensure update is correctly formatted
-        Document updateDocument;
-        if (!update.containsKey("$set")) {
-            updateDocument = new Document("$set", update);
-        } else {
-            updateDocument = new Document(update); // Already properly formatted
-        }
-
-        mongoTemplate.getCollection(collectionName).updateMany(
-                new Document(query),
-                updateDocument
-        );
-
-        System.out.println("Update completed.");
-    }
-
-    private void processDeleteOperation(String changeUnitId, CollectionData collectionData) {
-        try {
-            collectionData.getDelete().ifPresent(deleteNode -> {
-                JsonNode queriesNode = deleteNode.get("queries");
-
-                if (queriesNode == null || !queriesNode.isArray()) {
-                    System.err.println("Delete operation skipped: 'queries' field is missing or not an array.");
-                    return;
+                    updateDocument(collectionName, query, update, mongoTemplate);
                 }
-
-                String collectionName = collectionData.getCollectionName();
-
-                // Process each delete query
-                queriesNode.forEach(queryNode -> {
-                    JsonNode queryJsonNode = queryNode.get("query");
-
-                    if (queryJsonNode == null) {
-                        System.err.println("Skipping delete: Missing 'query' in " + queryNode);
-                        return;
-                    }
-
-                    // Convert JsonNode to a valid MongoDB Document
-                    Document queryDocument = objectMapper.convertValue(queryJsonNode, Document.class);
-
-                    // Perform the deletion operation
-                    mongoTemplate.getCollection(collectionName).deleteMany(queryDocument);
-                    System.out.println("Deleted documents from collection: " + collectionName + " where query: " + queryDocument);
-                });
-                // Log successful delete operation
-                changeLogService.logChangeLog(changeUnitId, OperationType.DELETE.toString(), collectionData.getCollectionName(), true);
-            });
-        } catch (Exception e) {
-            // Log the exception in case of failure
-            System.err.println("Error processing delete operation for ChangeUnit: " + changeUnitId);
-            e.printStackTrace();
-
-            // Log failure
-            changeLogService.logChangeLog(changeUnitId, OperationType.DELETE.toString(), collectionData.getCollectionName(), false);
-        }
-    }
-
-    // Method to handle dropping a collection
-    public void dropCollection(String changeUnitId, String collectionName) {
-        try {
-            // Drop the collection
-            mongoTemplate.getDb().getCollection(collectionName).drop();
-
-            // Log the change
-            changeLogService.logChangeLog(changeUnitId, OperationType.DROP.toString(), collectionName, true);
-            System.out.println("Dropped collection: " + collectionName);
-        } catch (Exception e) {
-            System.err.println("Error dropping collection " + collectionName + ": " + e.getMessage());
-            changeLogService.logChangeLog(changeUnitId, OperationType.DROP.toString(), collectionName, false);
-        }
-    }
-
-    public void renameCollection(String changeUnitId, String oldCollectionName, String newCollectionName) {
-        try {
-            // Accessing MongoDatabase directly from MongoClient
-            MongoDatabase database = mongoClient.getDatabase(mongoTemplate.getDb().getName());
-
-            if (database != null) {
-                // Check if the collection exists before renaming
-                if (database.listCollectionNames().into(new java.util.ArrayList<>()).contains(oldCollectionName)) {
-                    // Rename collection using MongoNamespace
-                    database.getCollection(oldCollectionName).renameCollection(new MongoNamespace(database.getName(), newCollectionName));
-                    System.out.println("Collection renamed from " + oldCollectionName + " to " + newCollectionName);
-
-                    // Log the successful operation
-                    changeLogService.logChangeLog(changeUnitId, OperationType.RENAME.toString(), oldCollectionName, true);
-                } else {
-                    System.out.println("Collection " + oldCollectionName + " does not exist.");
-                    changeLogService.logChangeLog(changeUnitId, OperationType.RENAME.toString(), oldCollectionName, false);
-                }
+                System.out.println("Updated documents in collection: " + collectionName);
+                changeLogService.logChangeLog(changeUnitId, "UPDATE", collectionName, true,mongoTemplate);
             } else {
-                System.out.println("Failed to access MongoDatabase.");
+                System.err.println("Update operation skipped: 'queries' field is missing or not an array.");
             }
-        } catch (Exception e) {
-            System.err.println("Error processing rename operation for ChangeUnit: " + changeUnitId);
-            e.printStackTrace();
+        });
+    }
 
-            // Log failure in ChangeLog
-            changeLogService.logChangeLog(changeUnitId, OperationType.RENAME.toString(), oldCollectionName, false);
+
+    private void updateDocument(String collectionName, JsonNode queryNode, JsonNode updateNode, MongoTemplate mongoTemplate) {
+        Map<String, Object> query = objectMapper.convertValue(queryNode, Map.class);
+        Map<String, Object> updateFields = objectMapper.convertValue(updateNode, Map.class);
+
+        Document updateDocument;
+
+        if (updateFields.containsKey("$set") || updateFields.containsKey("$inc") || updateFields.containsKey("$push")) {
+            // ✅ Use the update fields directly if they already contain MongoDB update operators
+            updateDocument = new Document(updateFields);
+        } else {
+            // ✅ Wrap in $set only if missing
+            updateDocument = new Document("$set", updateFields);
         }
+
+        mongoTemplate.getCollection(collectionName).updateMany(new Document(query), updateDocument);
+    }
+
+
+    /**
+     * Deletes documents in a collection based on given queries.
+     */
+    private void processDeleteOperation(String changeUnitId, CollectionData collectionData, MongoTemplate mongoTemplate) {
+        collectionData.getDelete().ifPresent(deleteNode -> {  // Unwrap Optional<JsonNode>
+            String collectionName = collectionData.getCollectionName();
+            JsonNode queriesNode = deleteNode.get("queries");
+
+            if (queriesNode != null && queriesNode.isArray()) {
+                for (JsonNode queryNode : queriesNode) {
+                    JsonNode query = queryNode.get("query");
+                    deleteDocument(collectionName, query, mongoTemplate);
+                }
+                System.out.println("Deleted documents in collection: " + collectionName);
+                changeLogService.logChangeLog(changeUnitId, "DELETE", collectionName, true, mongoTemplate);
+            } else {
+                System.err.println("Delete operation skipped: 'queries' field is missing or not an array.");
+            }
+        });
+    }
+
+
+
+    private void deleteDocument(String collectionName, JsonNode queryNode, MongoTemplate mongoTemplate) {
+        Map<String, Object> query = objectMapper.convertValue(queryNode, Map.class);
+        mongoTemplate.getCollection(collectionName).deleteMany(new Document(query));
     }
 }
